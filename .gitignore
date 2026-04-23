@@ -1,0 +1,26 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Dependencies and runtime
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build/cache
+dist/
+build/
+.cache/
+.DS_Store
+
+# Generated brain artifacts (local knowledge store)
+brain-store/
+
+# Local data files (keep templates tracked)
+data/*.json
+!data/templates/
+!data/templates/*.json
+

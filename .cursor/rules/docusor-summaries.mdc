@@ -1,0 +1,14 @@
+---
+description: Refer to Docusor session summaries for context when working on this project.
+globs: 
+alwaysApply: false
+---
+
+# Docusor summaries (developer learning documents)
+
+When working on this project, **refer to Docusor session summaries** as knowledge artifacts and debugging guides. They are generated from past Cursor agent chats.
+
+- **Location:** `.cursor/docusor/summaries` (relative to workspace root).
+- **Filenames:** Human-language titles from the session overview (e.g. `Added login API with JWT.md`). Date and chat ID are in each file's frontmatter.
+- **Contents:** 12-section developer learning documents: Session Overview, Problem Context, Implementation Summary, How Cursor Solved It (step-by-step), Architecture/Design Impact, Project Structure Changes, Technical Decisions, Debugging & Failure Points, Mistakes Cursor Made, Effectiveness, Suggested Cursor Rules, and optional diagrams.
+- **Use:** Read relevant summaries to understand what was done, how Cursor solved it, where changes landed, and which rules to add. Use them for onboarding, debugging, and avoiding repeated mistakes.
