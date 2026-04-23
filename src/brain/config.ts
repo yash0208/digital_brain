@@ -4,12 +4,18 @@ export interface BrainConfig {
   privacyMode: PrivacyMode;
   markdownStoreDir: string;
   checkpointFilePath: string;
+  openaiStateFilePath: string;
   auditLogPath: string;
   continueOnConnectorError: boolean;
   openaiApiKey?: string;
   openaiModel: string;
   githubToken?: string;
   githubUsername?: string;
+  githubDocsSyncEnabled: boolean;
+  githubDocsRepoUrl?: string;
+  githubDocsBranch: string;
+  githubDocsTargetDir: string;
+  githubDocsSourceDir: string;
   githubLocalCloneRoots: string[];
   githubUpdateReadme: boolean;
   linkedinProfileUrl?: string;
@@ -48,12 +54,18 @@ export const loadConfig = (): BrainConfig => {
     privacyMode,
     markdownStoreDir: required(process.env.BRAIN_MARKDOWN_STORE_DIR, "BRAIN_MARKDOWN_STORE_DIR"),
     checkpointFilePath: required(process.env.BRAIN_CHECKPOINT_FILE, "BRAIN_CHECKPOINT_FILE"),
+    openaiStateFilePath: process.env.BRAIN_OPENAI_STATE_FILE ?? "./brain-store/checkpoints/openai-state.json",
     auditLogPath: required(process.env.BRAIN_AUDIT_LOG_FILE, "BRAIN_AUDIT_LOG_FILE"),
     continueOnConnectorError: process.env.BRAIN_CONTINUE_ON_CONNECTOR_ERROR !== "false",
     openaiApiKey: process.env.OPENAI_API_KEY,
     openaiModel: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
     githubToken: process.env.GITHUB_TOKEN,
     githubUsername: process.env.GITHUB_USERNAME,
+    githubDocsSyncEnabled: process.env.GITHUB_DOCS_SYNC_ENABLED === "true",
+    githubDocsRepoUrl: process.env.GITHUB_DOCS_REPO_URL,
+    githubDocsBranch: process.env.GITHUB_DOCS_BRANCH ?? "main",
+    githubDocsTargetDir: process.env.GITHUB_DOCS_TARGET_DIR ?? "brain-docs",
+    githubDocsSourceDir: process.env.GITHUB_DOCS_SOURCE_DIR ?? "./brain-store/document",
     githubLocalCloneRoots: splitCsv(process.env.GITHUB_LOCAL_CLONE_ROOTS),
     githubUpdateReadme: process.env.GITHUB_UPDATE_README !== "false",
     linkedinProfileUrl: process.env.LINKEDIN_PROFILE_URL,

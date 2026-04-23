@@ -1,6 +1,6 @@
 import { makeEntityId } from "./id";
 import { normalizeEntity } from "./normalize";
-import { generateMarkdownWithOpenAI } from "./openai";
+import { generateMarkdownWithOpenAIDetailed } from "./openai";
 import type {
   BrainEntity,
   CommitActivity,
@@ -29,6 +29,7 @@ interface ModelFriendlyBrainOptions {
   openaiApiKey?: string;
   openaiModel: string;
   onLog?: (message: string) => void;
+  openaiProjectComparisonSince?: string;
 }
 
 interface OpenAIGenerationStats {
@@ -36,12 +37,61 @@ interface OpenAIGenerationStats {
   projectDocsFallbackUsed: number;
   personaGeneratedWithOpenAI: boolean;
   personaFallbackUsed: boolean;
+  projectOpenAIFailureReasons: string[];
+  personaOpenAIFailureReason?: string;
 }
 
 interface ModelFriendlyBrainResult {
   entities: BrainEntity[];
   stats: OpenAIGenerationStats;
 }
+
+const mapWithConcurrency = async <TInput, TOutput>(
+  items: TInput[],
+  concurrency: number,
+  worker: (item: TInput, index: number) => Promise<TOutput>
+): Promise<TOutput[]> => {
+  if (items.length === 0) return [];
+  const safeConcurrency = Math.max(1, Math.min(concurrency, items.length));
+  const results = new Array<TOutput>(items.length);
+  let nextIndex = 0;
+
+  const runWorker = async (): Promise<void> => {
+    while (true) {
+      const current = nextIndex;
+      nextIndex += 1;
+      if (current >= items.length) return;
+      results[current] = await worker(items[current], current);
+    }
+  };
+
+  await Promise.all(Array.from({ length: safeConcurrency }, () => runWorker()));
+  return results;
+};
+
+const getRepoPushedAt = (entity: BrainEntity & { data: Repo }): string | undefined => {
+  const payload = entity.rawPayload as { pushedAt?: unknown } | undefined;
+  return typeof payload?.pushedAt === "string" ? payload.pushedAt : undefined;
+};
+
+const hasProjectRepoChangedSince = (
+  project: BrainEntity & { data: Project },
+  repoEntities: Array<BrainEntity & { data: Repo }>,
+  since?: string
+): boolean => {
+  if (!since) return true;
+  const sinceDate = new Date(since);
+  if (Number.isNaN(sinceDate.getTime())) return true;
+  const projectRepos = repoEntities.filter((repo) => project.data.repoIds.includes(repo.data.id));
+  if (!projectRepos.length) return true;
+  return projectRepos.some((repo) => {
+    const pushedAt = getRepoPushedAt(repo);
+    if (!pushedAt) return true;
+    const pushedDate = new Date(pushedAt);
+    if (Number.isNaN(pushedDate.getTime())) return true;
+    return pushedDate > sinceDate;
+  });
+};
 
 const topWords = (texts: string[], skip = 10): string[] => {
   const stopWords = new Set([
@@ -356,7 +406,8 @@ export const buildModelFriendlyBrain = async (
       : "openai:disabled missing OPENAI_API_KEY or OPENAI_MODEL"
   );
 
-  const repos = entities.filter(isRepo).map((entity) => entity.data);
+  const repoEntities = entities.filter(isRepo);
+  const repos = repoEntities.map((entity) => entity.data);
   const projects = entities.filter(isProject);
   const posts = entities.filter(isPost).map((entity) => entity.data);
   const commits = entities.filter(isCommit).map((entity) => entity.data);
@@ -364,8 +415,10 @@ export const buildModelFriendlyBrain = async (
 
   let projectDocsGeneratedWithOpenAI = 0;
   let projectDocsFallbackUsed = 0;
-  const projectBrainDocs = await Promise.all(
-    projects.map(async (projectEntity) => {
+  let projectOpenAIFailureReasons = new Map<string, number>();
+  const projectTotal = projects.length;
+  let projectCompleted = 0;
+  const projectBrainDocs = await mapWithConcurrency(projects, hasOpenAI ? 3 : 1, async (projectEntity) => {
       const projectRepos = repos.filter((repo) => projectEntity.data.repoIds.includes(repo.id));
       const supportingDocs = documents.filter((doc) => {
         const docText = `${doc.title}\n${doc.textContent ?? ""}`.toLowerCase();
@@ -380,20 +433,50 @@ export const buildModelFriendlyBrain = async (
         supportingDocs,
         fallbackMarkdown
       );
-      const aiMarkdown =
-        options.openaiApiKey && options.openaiModel
-          ? await generateMarkdownWithOpenAI(options.openaiApiKey, options.openaiModel, prompt)
-          : undefined;
-      if (aiMarkdown) projectDocsGeneratedWithOpenAI += 1;
-      else projectDocsFallbackUsed += 1;
+      let aiMarkdown: string | undefined;
+      let failureReason: string | undefined;
+      const repoChanged = hasProjectRepoChangedSince(
+        projectEntity,
+        repoEntities,
+        options.openaiProjectComparisonSince
+      );
+      if (options.openaiApiKey && options.openaiModel && repoChanged) {
+        const aiResult = await generateMarkdownWithOpenAIDetailed(
+          options.openaiApiKey,
+          options.openaiModel,
+          prompt
+        );
+        aiMarkdown = aiResult.text;
+        if (!aiResult.ok) {
+          failureReason =
+            aiResult.error ??
+            (aiResult.status ? `HTTP ${aiResult.status}` : "OpenAI call failed without details");
+        }
+      } else if (options.openaiApiKey && options.openaiModel && !repoChanged) {
+        failureReason = "Skipped OpenAI: repo unchanged since previous OpenAI run";
+      }
+      if (aiMarkdown) {
+        projectDocsGeneratedWithOpenAI += 1;
+      } else {
+        projectDocsFallbackUsed += 1;
+        if (failureReason) {
+          const key = failureReason.slice(0, 180);
+          projectOpenAIFailureReasons.set(key, (projectOpenAIFailureReasons.get(key) ?? 0) + 1);
+        }
+      }
+      projectCompleted += 1;
+      if (hasOpenAI && (projectCompleted === 1 || projectCompleted % 10 === 0 || projectCompleted === projectTotal)) {
+        options.onLog?.(
+          `openai:projectDocs progress=${projectCompleted}/${projectTotal} generated=${projectDocsGeneratedWithOpenAI} fallback=${projectDocsFallbackUsed}`
+        );
+      }
       const markdown = aiMarkdown ?? fallbackMarkdown;
       return makeBrainDocumentEntity(
         `${projectEntity.data.name} Project Brain`,
         `project-brain:${projectEntity.externalId}`,
         markdown
       );
-    })
-  );
+    });
 
   const githubHub = makeBrainDocumentEntity(
     "GitHub Main Knowledge Hub",
@@ -407,10 +490,33 @@ export const buildModelFriendlyBrain = async (
   );
   const fallbackPersonaHub = buildPersonaHub(repos, posts, commits);
   const personaPrompt = buildPersonaPrompt(repos, posts, commits, fallbackPersonaHub);
-  const aiPersonaHub =
-    options.openaiApiKey && options.openaiModel
-      ? await generateMarkdownWithOpenAI(options.openaiApiKey, options.openaiModel, personaPrompt)
-      : undefined;
+  let aiPersonaHub: string | undefined;
+  let personaOpenAIFailureReason: string | undefined;
+  const anyRepoChangedSinceOpenAiRun = projects.some((project) =>
+    hasProjectRepoChangedSince(project, repoEntities, options.openaiProjectComparisonSince)
+  );
+  if (options.openaiApiKey && options.openaiModel && anyRepoChangedSinceOpenAiRun) {
+    options.onLog?.("openai:persona progress=0/1");
+    const personaResult = await generateMarkdownWithOpenAIDetailed(
+      options.openaiApiKey,
+      options.openaiModel,
+      personaPrompt
+    );
+    aiPersonaHub = personaResult.text;
+    if (!personaResult.ok) {
+      personaOpenAIFailureReason =
+        personaResult.error ??
+        (personaResult.status ? `HTTP ${personaResult.status}` : "OpenAI call failed without details");
+    }
+    options.onLog?.(
+      `openai:persona progress=1/1 generated=${personaResult.ok ? 1 : 0} fallback=${
+        personaResult.ok ? 0 : 1
+      }`
+    );
+  } else if (options.openaiApiKey && options.openaiModel && !anyRepoChangedSinceOpenAiRun) {
+    personaOpenAIFailureReason = "Skipped OpenAI: no repo changes since previous OpenAI run";
+    options.onLog?.("openai:persona progress=1/1 generated=0 fallback=1");
+  }
   const personaGeneratedWithOpenAI = Boolean(aiPersonaHub);
   const personaFallbackUsed = !personaGeneratedWithOpenAI;
   const personaHub = makeBrainDocumentEntity(
@@ -421,11 +527,22 @@ export const buildModelFriendlyBrain = async (
   options.onLog?.(
     `openai:projectDocs generated=${projectDocsGeneratedWithOpenAI} fallback=${projectDocsFallbackUsed}`
   );
+  if (projectOpenAIFailureReasons.size > 0) {
+    const topReasons = Array.from(projectOpenAIFailureReasons.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([reason, count]) => `${count}x ${reason}`)
+      .join(" | ");
+    options.onLog?.(`openai:projectDocs failures=${topReasons}`);
+  }
   options.onLog?.(
     `openai:persona generated=${personaGeneratedWithOpenAI ? 1 : 0} fallback=${
       personaFallbackUsed ? 1 : 0
     }`
   );
+  if (personaOpenAIFailureReason) {
+    options.onLog?.(`openai:persona failure=${personaOpenAIFailureReason.slice(0, 220)}`);
+  }
 
   // Commit entities are intentionally removed from file output and merged into project/persona docs.
   const finalEntities = [
@@ -442,6 +559,10 @@ export const buildModelFriendlyBrain = async (
       projectDocsFallbackUsed,
       personaGeneratedWithOpenAI,
       personaFallbackUsed,
+      projectOpenAIFailureReasons: Array.from(projectOpenAIFailureReasons.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([reason, count]) => `${count}x ${reason}`),
+      personaOpenAIFailureReason,
     },
   };
 };

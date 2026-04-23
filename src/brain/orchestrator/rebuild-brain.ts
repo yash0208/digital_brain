@@ -21,6 +21,10 @@ interface ConnectorFailure {
   message: string;
 }
 
+interface OpenAIState {
+  lastRunAt?: string;
+}
+
 const defaultCheckpointState = (): CheckpointState => ({ connectors: {} });
 
 const safeReadJson = async <T>(path: string, fallback: T): Promise<T> => {
@@ -65,6 +69,10 @@ export const rebuildBrain = async (mode: RunMode = "incremental"): Promise<void>
   const config = loadConfig();
   log(`starting rebuild mode=${mode}`);
   const checkpointState = await safeReadJson<CheckpointState>(config.checkpointFilePath, defaultCheckpointState());
+  const openaiState = await safeReadJson<OpenAIState>(config.openaiStateFilePath, {});
+  if (openaiState.lastRunAt) {
+    log(`model-friendly:openai:comparisonSince=${openaiState.lastRunAt}`);
+  }
 
   const markdownWriter = new MarkdownWriter({
     baseDir: config.markdownStoreDir,
@@ -140,6 +148,7 @@ export const rebuildBrain = async (mode: RunMode = "incremental"): Promise<void>
   const modelFriendly = await buildModelFriendlyBrain(collectedEntities, {
     openaiApiKey: config.openaiApiKey,
     openaiModel: config.openaiModel,
+    openaiProjectComparisonSince: openaiState.lastRunAt,
     onLog: (message) => log(`model-friendly:${message}`),
   });
   const finalEntities = dedupeEntities(modelFriendly.entities);
@@ -189,6 +198,9 @@ export const rebuildBrain = async (mode: RunMode = "incremental"): Promise<void>
   }
 
   await saveJson(config.checkpointFilePath, checkpointState);
+  await saveJson(config.openaiStateFilePath, {
+    lastRunAt: new Date().toISOString(),
+  });
   await appendAuditLog(config.auditLogPath, {
     runStartedAt,
     runEndedAt: new Date().toISOString(),
