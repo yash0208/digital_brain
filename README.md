@@ -55,6 +55,8 @@ npm i -D playwright
   Local output root (default: `./brain-store`)
 - `BRAIN_CHECKPOINT_FILE`  
   Checkpoint JSON path (default style: `./brain-store/checkpoints/state.json`)
+- `BRAIN_OPENAI_STATE_FILE`  
+  OpenAI comparison timestamp checkpoint (default: `./brain-store/checkpoints/openai-state.json`)
 - `BRAIN_AUDIT_LOG_FILE`  
   Audit JSON path (default style: `./brain-store/audit/runs.json`)
 
@@ -83,6 +85,7 @@ npm i -D playwright
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (default: `gpt-4.1-mini`)
 - quoted and unquoted keys are both supported in `.env`
+- OpenAI generation runs only for projects with repo changes after `BRAIN_OPENAI_STATE_FILE` timestamp.
 
 ### LinkedIn ingestion
 
@@ -185,8 +188,12 @@ In graph UI, click a node to view:
 - **OpenAI not being used**
   - check run logs for:
     - `model-friendly:openai:enabled model=...`
+    - `model-friendly:openai:projectDocs progress=.../... generated=... fallback=...`
+    - `model-friendly:openai:persona progress=.../... generated=... fallback=...`
     - `model-friendly:openai:projectDocs generated=... fallback=...`
     - `model-friendly:openai:persona generated=... fallback=...`
+    - `model-friendly:openai:projectDocs failures=...`
+    - `model-friendly:openai:persona failure=...`
   - if you see `openai:disabled`, verify `OPENAI_API_KEY` and `OPENAI_MODEL` are present in `.env`
   - inspect `brain-store/audit/runs.json` for `openaiGeneration` counters per run
 
