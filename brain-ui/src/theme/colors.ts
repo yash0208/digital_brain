@@ -1,0 +1,23 @@
+export const colors = {
+  background: "#141414",
+  backgroundAlt: "#1c1c1c",
+  surface: "#202020",
+  border: "#2e2e2e",
+  textPrimary: "#d4d4d4",
+  textMuted: "#9b9b9b",
+  accent: "#7ea7ff",
+  graphLink: "#4b4b4b",
+  graphNodeFallback: "#b5b5b5",
+  graphNodeByGroup: {
+    person: "#7ea7ff",
+    organization: "#ffcc66",
+    project: "#89d185",
+    repo: "#cb96ff",
+    post: "#f29fc1",
+    document: "#84d8c9",
+    skill: "#ffaa77",
+    automation_profile: "#8fa8ff",
+    hub_source: "#e7c470",
+    hub_topic: "#76d7d1",
+  } as Record<string, string>,
+};

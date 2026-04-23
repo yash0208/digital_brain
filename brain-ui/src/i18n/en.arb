@@ -1,0 +1,23 @@
+{
+  "appTitle": "Digital Brain Workspace",
+  "appSubtitle": "Obsidian-inspired React graph explorer",
+  "searchPlaceholder": "Search nodes... (Ctrl/Cmd+K)",
+  "filtersTitle": "Filters",
+  "nodesTitle": "Nodes",
+  "inspectorTitle": "Node Inspector",
+  "previewTitle": "Markdown Preview",
+  "previewUnavailable": "Preview unavailable in this browser context. Open file link above.",
+  "previewEmpty": "Select a node with a file path.",
+  "selectNodeHint": "Select a node from graph or list.",
+  "unknownSource": "unknown",
+  "fileNone": "none",
+  "visibleStats": "Visible nodes: {visible} / {total} | Links: {links}",
+  "jumpPlaceholder": "Jump to node...",
+  "sourceLabel": "Source",
+  "typeLabel": "Type",
+  "idLabel": "ID",
+  "fileLabel": "File",
+  "sourceUrlLabel": "Source URL",
+  "loadingGraph": "Loading graph...",
+  "loadingGraphFailed": "Graph loading failed."
+}

@@ -1,0 +1,23 @@
+{
+  "appTitle": "Espace Cerveau Numerique",
+  "appSubtitle": "Explorateur de graphe React inspire d'Obsidian",
+  "searchPlaceholder": "Rechercher des noeuds... (Ctrl/Cmd+K)",
+  "filtersTitle": "Filtres",
+  "nodesTitle": "Noeuds",
+  "inspectorTitle": "Inspecteur de noeud",
+  "previewTitle": "Apercu Markdown",
+  "previewUnavailable": "Apercu indisponible dans ce contexte navigateur. Ouvrez le lien du fichier ci-dessus.",
+  "previewEmpty": "Selectionnez un noeud avec un chemin de fichier.",
+  "selectNodeHint": "Selectionnez un noeud depuis le graphe ou la liste.",
+  "unknownSource": "inconnu",
+  "fileNone": "aucun",
+  "visibleStats": "Noeuds visibles : {visible} / {total} | Liens : {links}",
+  "jumpPlaceholder": "Aller a un noeud...",
+  "sourceLabel": "Source",
+  "typeLabel": "Type",
+  "idLabel": "ID",
+  "fileLabel": "Fichier",
+  "sourceUrlLabel": "URL source",
+  "loadingGraph": "Chargement du graphe...",
+  "loadingGraphFailed": "Echec du chargement du graphe."
+}

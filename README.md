@@ -34,6 +34,29 @@ npx tsx src/brain/visualize.ts
 5. Open:
 - `brain-store/graph/brain-graph.html`
 
+## One Command React UI Workflow
+
+Run everything end-to-end with one script:
+
+```bash
+./scripts/run-brain-ui.sh incremental
+```
+
+For full refresh:
+
+```bash
+./scripts/run-brain-ui.sh full
+```
+
+What this script does:
+- rebuilds your brain data (`full` or `incremental`)
+- regenerates `brain-store/graph/brain-graph-data.json`
+- installs `brain-ui` dependencies
+- launches the React UI dev server
+
+React UI location:
+- `brain-ui/`
+
 ## Prerequisites
 
 - Node.js 18+
