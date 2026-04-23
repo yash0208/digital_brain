@@ -9,8 +9,13 @@ const parseLine = (line: string): { key: string; value: string } | undefined => 
   if (index <= 0) return undefined;
 
   const key = trimmed.slice(0, index).trim();
-  const value = trimmed.slice(index + 1).trim();
+  const rawValue = trimmed.slice(index + 1).trim();
   if (!key) return undefined;
+
+  const quoted =
+    (rawValue.startsWith('"') && rawValue.endsWith('"')) ||
+    (rawValue.startsWith("'") && rawValue.endsWith("'"));
+  const value = quoted ? rawValue.slice(1, -1) : rawValue;
 
   return { key, value };
 };

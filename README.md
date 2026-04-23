@@ -1,156 +1,198 @@
 # Digital Brain
 
-Build and maintain a local + Notion-ready "digital brain" from your work footprint:
+Build and maintain a local, model-friendly personal knowledge graph from your work footprint.
 
-- GitHub repos + commits
-- LinkedIn profile/posts (browser mode or JSON import mode)
-- Overleaf project ingestion hooks
-- Local Markdown knowledge store
-- Obsidian-style graph visualization
+## What It Covers
 
-This project is designed to be rerunnable by anyone with credentials and config.
+- GitHub repositories and recent commit activity
+- LinkedIn profile and posts (browser scrape or JSON import)
+- Overleaf account/project signals
+- Project intelligence docs + persona hubs
+- Interactive graph visualization
 
-## What This Tool Does
+The output is optimized for both humans and LLMs: readable markdown docs, hub documents, and explicit interconnections.
 
-- Ingests source data through connectors.
-- Normalizes data into stable entities (`project`, `repo`, `commit_activity`, `document`, etc.).
-- Stores entities in local Markdown (`brain-store/`).
-- Tracks checkpoints and audits for incremental updates.
-- Can enrich project docs/README content using OpenAI.
+## Quick Start
 
-## Architecture
-
-1. Connectors collect source data.
-2. Normalization creates deterministic IDs.
-3. Persistence writes markdown entities (and optional Notion upserts).
-4. Visualization generates an interactive knowledge graph HTML.
-
-## Prerequisites
-
-- Node.js 18+
-- `tsx` available via `npx` (or installed in your project)
-- GitHub token for repo/commit ingestion
-- Optional OpenAI key for AI-powered project intelligence
-- Optional LinkedIn/Overleaf settings depending on your ingestion mode
-
-## Initial Setup
-
-1. Copy environment template:
-
+1. Copy env template:
 ```bash
 cp .env.example .env
 ```
 
-2. Fill required values in `.env`:
+2. Fill required env values (see full env reference below).
+
+3. Run a full build:
+```bash
+npx tsx src/brain/run.ts full
+```
+
+4. Generate graph:
+```bash
+npx tsx src/brain/visualize.ts
+```
+
+5. Open:
+- `brain-store/graph/brain-graph.html`
+
+## Prerequisites
+
+- Node.js 18+
+- `tsx` (`npx tsx ...`)
+- GitHub PAT with repo read access
+- Optional OpenAI key for richer project intelligence
+- Optional Playwright install for LinkedIn browser mode
+
+If using LinkedIn browser mode, install Playwright:
+```bash
+npm i -D playwright
+```
+
+## Environment Variables
+
+### Core (required)
+
+- `BRAIN_MARKDOWN_STORE_DIR`  
+  Local output root (default: `./brain-store`)
+- `BRAIN_CHECKPOINT_FILE`  
+  Checkpoint JSON path (default style: `./brain-store/checkpoints/state.json`)
+- `BRAIN_AUDIT_LOG_FILE`  
+  Audit JSON path (default style: `./brain-store/audit/runs.json`)
+
+### Runtime behavior
+
+- `BRAIN_PRIVACY_MODE` = `full_raw` | `summaries_only` | `hybrid`
+- `BRAIN_CONTINUE_ON_CONNECTOR_ERROR` = `true` | `false`
+
+### GitHub ingestion (required for useful output)
 
 - `GITHUB_TOKEN`
 - `GITHUB_USERNAME`
-- `BRAIN_MARKDOWN_STORE_DIR`
-- `BRAIN_CHECKPOINT_FILE`
-- `BRAIN_AUDIT_LOG_FILE`
+- `GITHUB_DOCS_SYNC_ENABLED` = `true` | `false`
+- `GITHUB_DOCS_REPO_URL` (private/public repo URL for publishing generated docs)
+- `GITHUB_DOCS_BRANCH` (default: `main`)
+- `GITHUB_DOCS_TARGET_DIR` (default: `brain-docs`)
+- `GITHUB_DOCS_SOURCE_DIR` (default: `./brain-store/document`)
+- `GITHUB_LOCAL_CLONE_ROOTS` (comma-separated local roots containing cloned repos)
+- `GITHUB_UPDATE_README` = `true` | `false`  
+  Updates/creates repo README managed section between:
+  - `<!-- DIGITAL_BRAIN:START -->`
+  - `<!-- DIGITAL_BRAIN:END -->`
 
-3. Optional but recommended:
+### OpenAI enrichment (optional, recommended)
 
 - `OPENAI_API_KEY`
-- `OPENAI_MODEL`
-- `GITHUB_LOCAL_CLONE_ROOTS`
-- `GITHUB_UPDATE_README=true`
+- `OPENAI_MODEL` (default: `gpt-4.1-mini`)
+- quoted and unquoted keys are both supported in `.env`
 
-## Run Modes
+### LinkedIn ingestion
 
-### Full Rebuild
+- `LINKEDIN_INGESTION_MODE` = `browser` | `json`
+- `LINKEDIN_PROFILE_URL`
+- `LINKEDIN_BROWSER_USER_DATA_DIR` (required in browser mode)
+- `LINKEDIN_BROWSER_HEADLESS` = `true` | `false`
+- `LINKEDIN_MAX_POSTS`
+- `LINKEDIN_DEBUG_DIR`
+- `LINKEDIN_PROFILE_JSON_PATH` (used in json mode)
+- `LINKEDIN_POSTS_JSON_PATH` (used in json mode)
 
-Use this to rebuild from scratch or refresh everything:
+Templates for JSON mode:
+- `data/templates/linkedin-profile.template.json`
+- `data/templates/linkedin-posts.template.json`
+
+### Overleaf ingestion
+
+- `OVERLEAF_GIT_TOKEN`
+- `OVERLEAF_EMAIL`
+- `OVERLEAF_DISCOVERY_MODE` = `account` | `urls`
+- `OVERLEAF_PROJECT_URLS` (comma-separated, used when mode=`urls`)
+
+## Run Commands
+
+### Full rebuild
 
 ```bash
 npx tsx src/brain/run.ts full
 ```
 
-### Incremental Improve Mode
+Use for first run or periodic full refresh.
 
-Use this for day-to-day updates after initial setup:
+### Incremental improve run
 
 ```bash
 npx tsx src/brain/run.ts incremental
 ```
 
-This mode uses connector checkpoints to fetch only new activity where supported (for example, new commits since last sync).
+Uses checkpoints and skips deep reprocessing where possible.
 
-## Visualization
-
-Generate graph artifacts:
+### Graph generation
 
 ```bash
 npx tsx src/brain/visualize.ts
 ```
 
-Then open:
+Optional custom graph output directory:
+```bash
+npx tsx src/brain/visualize.ts ./brain-store/my-graph
+```
 
+## Where to Find Everything
+
+### Main knowledge output
+
+- `brain-store/document/`  
+  Project brain docs, persona/work-style docs, source hubs
+- `brain-store/project/`
+- `brain-store/repo/`
+- `brain-store/post/`
+- `brain-store/person/`
+
+### Runtime metadata
+
+- `brain-store/checkpoints/state.json` (last sync checkpoints)
+- `brain-store/audit/runs.json` (run history and stats)
+- audit includes `githubDocsSync` status for each run
+
+### LinkedIn debug (browser mode)
+
+- `brain-store/debug/`  
+  Screenshots + parsed JSON traces for scrape troubleshooting
+
+### Graph files
+
+- `brain-store/graph/brain-graph-data.json`
 - `brain-store/graph/brain-graph.html`
 
-## LinkedIn Ingestion Options
+In graph UI, click a node to view:
+- type/source/id
+- source URL (if available)
+- local brain file path
 
-### Option A: Browser mode
+## Troubleshooting
 
-- `LINKEDIN_INGESTION_MODE=browser`
-- Requires Playwright and a valid browser session profile path.
-- If profile lock issues happen, use JSON mode.
+- **LinkedIn profile lock error**
+  - Close Chrome windows using same profile, or
+  - switch to JSON mode (`LINKEDIN_INGESTION_MODE=json`).
 
-### Option B: JSON mode (recommended fallback)
+- **Too many connector failures**
+  - keep `BRAIN_CONTINUE_ON_CONNECTOR_ERROR=true` for partial success
+  - inspect `brain-store/audit/runs.json`
 
-- `LINKEDIN_INGESTION_MODE=json`
-- Set:
-  - `LINKEDIN_PROFILE_JSON_PATH`
-  - `LINKEDIN_POSTS_JSON_PATH`
-- Use templates:
-  - `data/templates/linkedin-profile.template.json`
-  - `data/templates/linkedin-posts.template.json`
+- **Graph looks stale**
+  - rerun build + visualize:
+    - `npx tsx src/brain/run.ts incremental`
+    - `npx tsx src/brain/visualize.ts`
 
-## README Auto-Update for Projects
+- **OpenAI not being used**
+  - check run logs for:
+    - `model-friendly:openai:enabled model=...`
+    - `model-friendly:openai:projectDocs generated=... fallback=...`
+    - `model-friendly:openai:persona generated=... fallback=...`
+  - if you see `openai:disabled`, verify `OPENAI_API_KEY` and `OPENAI_MODEL` are present in `.env`
+  - inspect `brain-store/audit/runs.json` for `openaiGeneration` counters per run
 
-If `GITHUB_UPDATE_README=true` and local clones are discoverable via `GITHUB_LOCAL_CLONE_ROOTS`, the tool:
+## Security
 
-- creates missing `README.md` files when needed
-- updates a managed section between:
-  - `<!-- DIGITAL_BRAIN:START -->`
-  - `<!-- DIGITAL_BRAIN:END -->`
-
-This section includes:
-
-- use case
-- project purpose
-- architecture hints
-- technology stack
-- data structure context
-- run instructions
-
-## How To Keep Improving Over Time
-
-After first full run:
-
-1. Keep `incremental` as your daily/weekly run command.
-2. Add newly cloned repos under `GITHUB_LOCAL_CLONE_ROOTS`.
-3. Re-run incremental to pick up:
-   - new commits
-   - newly detected projects
-   - README intelligence refresh
-4. Regenerate graph after updates.
-
-Suggested cadence:
-
-- `incremental`: daily or every coding session
-- `full`: weekly or before major releases
-
-## Debugging
-
-- Connector progress logs are printed with timestamps.
-- Audit logs: `brain-store/audit/runs.json`
-- Checkpoints: `brain-store/checkpoints/state.json`
-- LinkedIn debug assets (screenshots/json): `LINKEDIN_DEBUG_DIR`
-
-## Security Notes
-
-- Never commit `.env`.
-- Rotate tokens if exposed.
-- Use least-privilege API keys.
+- `.env` is ignored by git.
+- Never share tokens in chat/logs/screenshots.
+- Rotate keys immediately if exposed.
 

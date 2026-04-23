@@ -6,8 +6,8 @@ import { linkedinBrowserConnector } from "../connectors/linkedin-browser";
 import { overleafBrowserConnector } from "../connectors/overleaf-browser";
 import type { SourceConnector } from "../connectors/types";
 import { buildModelFriendlyBrain } from "../core/model-friendly-brain";
+import { syncDocsToGithubRepo } from "../persistence/github-docs-sync";
 import { MarkdownWriter } from "../persistence/markdown-writer";
-import { NotionWriter, type NotionUpsertClient } from "../persistence/notion-writer";
 import type { BrainEntity } from "../types/schema";
 
 type RunMode = "full" | "incremental";
@@ -49,12 +49,6 @@ const getConnectors = (): SourceConnector[] => [
   overleafBrowserConnector,
 ];
 
-const createNoopNotionClient = (): NotionUpsertClient => ({
-  async upsertEntity(): Promise<void> {
-    return;
-  },
-});
-
 const dedupeEntities = (entities: BrainEntity[]): BrainEntity[] => {
   const byId = new Map<string, BrainEntity>();
   for (const entity of entities) {
@@ -75,11 +69,6 @@ export const rebuildBrain = async (mode: RunMode = "incremental"): Promise<void>
   const markdownWriter = new MarkdownWriter({
     baseDir: config.markdownStoreDir,
     privacyMode: config.privacyMode,
-  });
-
-  const notionWriter = new NotionWriter({
-    privacyMode: config.privacyMode,
-    client: createNoopNotionClient(),
   });
 
   const connectors = getConnectors();
@@ -148,18 +137,56 @@ export const rebuildBrain = async (mode: RunMode = "incremental"): Promise<void>
     log(`connector:done name=${connector.name} elapsedMs=${connectorElapsedMs}`);
   }
 
-  const finalEntities = dedupeEntities(buildModelFriendlyBrain(collectedEntities));
+  const modelFriendly = await buildModelFriendlyBrain(collectedEntities, {
+    openaiApiKey: config.openaiApiKey,
+    openaiModel: config.openaiModel,
+    onLog: (message) => log(`model-friendly:${message}`),
+  });
+  const finalEntities = dedupeEntities(modelFriendly.entities);
   log(`model-friendly:entities total=${finalEntities.length}`);
 
   for (const entity of finalEntities) {
     const changed = await markdownWriter.upsert(entity);
     if (changed) upsertedCount += 1;
     else unchangedCount += 1;
-    await notionWriter.upsert(entity);
   }
 
   const staleDeletedCount = await markdownWriter.cleanupStaleFiles(finalEntities);
   log(`cleanup:staleMarkdownDeleted=${staleDeletedCount}`);
+
+  let githubDocsSync = {
+    enabled: config.githubDocsSyncEnabled,
+    committed: false,
+    pushed: false,
+    skippedReason: undefined as string | undefined,
+    error: undefined as string | undefined,
+  };
+  try {
+    githubDocsSync = {
+      ...githubDocsSync,
+      ...(await syncDocsToGithubRepo(
+        {
+          enabled: config.githubDocsSyncEnabled,
+          githubToken: config.githubToken,
+          repoUrl: config.githubDocsRepoUrl,
+          branch: config.githubDocsBranch,
+          targetDir: config.githubDocsTargetDir,
+          sourceDir: config.githubDocsSourceDir,
+        },
+        log
+      )),
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "unknown github docs sync error";
+    githubDocsSync.error = message;
+    log(`github-docs:error message=${message}`);
+    if (!config.continueOnConnectorError) {
+      throw error;
+    }
+  }
+  if (githubDocsSync.skippedReason) {
+    log(`github-docs:skipped reason=${githubDocsSync.skippedReason}`);
+  }
 
   await saveJson(config.checkpointFilePath, checkpointState);
   await appendAuditLog(config.auditLogPath, {
@@ -169,10 +196,12 @@ export const rebuildBrain = async (mode: RunMode = "incremental"): Promise<void>
     upsertedCount,
     unchangedCount,
     staleDeletedCount,
+    githubDocsSync,
+    openaiGeneration: modelFriendly.stats,
     connectorCount: connectors.length,
     connectorFailures,
   });
   log(
-    `rebuild:done upserted=${upsertedCount} unchanged=${unchangedCount} failures=${connectorFailures.length}`
+    `rebuild:done upserted=${upsertedCount} unchanged=${unchangedCount} connectorFailures=${connectorFailures.length}`
   );
 };

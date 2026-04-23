@@ -8,6 +8,28 @@ export interface OpenAIProjectContext {
   architectureHint?: string;
 }
 
+export const generateMarkdownWithOpenAI = async (
+  apiKey: string,
+  model: string,
+  prompt: string
+): Promise<string | undefined> => {
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      input: prompt,
+    }),
+  });
+
+  if (!response.ok) return undefined;
+  const data = (await response.json()) as { output_text?: string };
+  return data.output_text?.trim() || undefined;
+};
+
 export const generateProjectIntelligenceWithOpenAI = async (
   apiKey: string,
   model: string,
@@ -29,19 +51,5 @@ export const generateProjectIntelligenceWithOpenAI = async (
     context.readmeSnippet ?? "N/A",
   ].join("\n");
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      input: prompt,
-    }),
-  });
-
-  if (!response.ok) return undefined;
-  const data = (await response.json()) as { output_text?: string };
-  return data.output_text?.trim() || undefined;
+  return generateMarkdownWithOpenAI(apiKey, model, prompt);
 };
